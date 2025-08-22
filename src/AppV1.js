@@ -130,14 +130,28 @@ function ErrorMessage({ message }) {
 }
 
 function Navbar({ children }) {
-  return <nav className="nav-bar">{children}</nav>;
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    function handleScroll() {
+      if (window.scrollY > 10) setScrolled(true);
+      else setScrolled(false);
+    }
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    handleScroll(); // set initial state in case page already scrolled
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  return (
+    <nav className={`nav-bar ${scrolled ? "scrolled" : ""}`}>{children}</nav>
+  );
 }
 
 function Logo() {
   return (
     <div className="logo">
       <span role="img">🍿</span>
-      <h1>usePopcorn</h1>
+      <h1>fetchMovies</h1>
     </div>
   );
 }
@@ -164,11 +178,9 @@ function Search({ query, setQuery }) {
 
 function NumResult({ movies }) {
   return (
-    <nav className="nav-bar">
-      <p className="num-results">
-        Found <strong>{movies.length}</strong> results
-      </p>
-    </nav>
+    <div className="num-results">
+      Found <strong>{movies.length}</strong> results
+    </div>
   );
 }
 
