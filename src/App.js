@@ -51,17 +51,14 @@ const tempWatchedData = [
   },
 ];
 
-const KEY = "7f44b81c";
+// fallback key for local dev only — use env var in production
+const KEY = import.meta?.env?.VITE_OMDB_KEY || "7f44b81c";
+const OMDB_BASE = "https://www.omdbapi.com/"; // *** HTTPS ***
 
 export default function App() {
   const [query, setQuery] = useState("");
   const { movies, isLoding, error } = useMovies(query);
   const [watched, setWatched] = useLocalStorageState([], "watched");
-
-  // const [watched, setWatched] = useState(function () {
-  //   const storedValue = localStorage.getItem("watched");
-  //   return JSON.parse(storedValue);
-  // });
 
   const [selectedId, setSelectedId] = useState(null);
 
@@ -90,7 +87,6 @@ export default function App() {
       </Navbar>
       <Main>
         <Box>
-          {/* {isLoding ? <Loader /> : <MoviesLists movies={movies} />} */}
           {isLoding && <Loader />}
           {!isLoding && !error && (
             <MoviesLists movies={movies} onSelectMovie={handelSelectedMovie} />
@@ -181,7 +177,7 @@ function Main({ children }) {
 }
 
 const average = (arr) =>
-  arr.reduce((acc, cur, i, arr) => acc + cur / arr.length, 0);
+  arr.length === 0 ? 0 : arr.reduce((acc, cur) => acc + cur / arr.length, 0);
 
 function Box({ children }) {
   const [isOpen, setIsOpen] = useState(true);
@@ -195,29 +191,6 @@ function Box({ children }) {
     </div>
   );
 }
-/*
-function WatchedMovies() {
-  const [watched, setWatched] = useState(tempWatchedData);
-  const [isOpen2, setIsOpen2] = useState(true);
-
-  return (
-    <div className="box">
-      <button
-        className="btn-toggle"
-        onClick={() => setIsOpen2((open) => !open)}
-      >
-        {isOpen2 ? "–" : "+"}
-      </button>
-      {isOpen2 && (
-        <>
-          <Summary watched={watched} />
-          <WatchedLists watched={watched} />
-        </>
-      )}
-    </div>
-  );
-}
-*/
 
 function MoviesLists({ movies, onSelectMovie }) {
   return (
@@ -233,10 +206,15 @@ function MoviesLists({ movies, onSelectMovie }) {
   );
 }
 
+function safePosterUrl(poster) {
+  if (!poster || poster === "N/A") return "/placeholder.png";
+  return poster.replace(/^http:\/\//i, "https://");
+}
+
 function Movies({ movie, onSelectMovie }) {
   return (
     <li onClick={() => onSelectMovie(movie.imdbID)}>
-      <img src={movie.Poster} alt={`${movie.Title} poster`} />
+      <img src={safePosterUrl(movie.Poster)} alt={`${movie.Title} poster`} />
       <h3>{movie.Title}</h3>
       <div>
         <p>
@@ -299,35 +277,29 @@ function MovieDetail({ selectedId, onCloseMoive, onAddWatched, watched }) {
 
   useKey("Escape", onCloseMoive);
 
-  // useEffect(
-  //   function () {
-  //     function callBacks(e) {
-  //       if (e.code === "Escape") {
-  //         onCloseMoive();
-  //       }
-  //     }
-
-  //     document.addEventListener("keydown", callBacks);
-
-  //     // this is a clear up funtion for this effect
-
-  //     return function () {
-  //       document.removeEventListener("keydown", callBacks);
-  //     };
-  //   },
-  //   [onCloseMoive]
-  // );
-
   useEffect(
     function () {
       async function getMoviesDetails() {
-        setIsLoding(true);
-        const res =
-          await fetch(`https://www.omdbapi.com/?apikey=${KEY}&i=${selectedId}
-`);
-        const data = await res.json();
-        setMovie(data);
-        setIsLoding(false);
+        if (!selectedId) return;
+        try {
+          setIsLoding(true);
+          const url = `${OMDB_BASE}?apikey=${KEY}&i=${encodeURIComponent(
+            selectedId
+          )}`;
+          const res = await fetch(url); // uses HTTPS via OMDB_BASE
+          if (!res.ok) throw new Error(`Network error: ${res.status}`);
+          const data = await res.json();
+          if (data.Response === "False")
+            throw new Error(data.Error || "OMDb error");
+          // sanitize poster
+          if (data.Poster) data.Poster = safePosterUrl(data.Poster);
+          setMovie(data);
+        } catch (err) {
+          console.error("getMoviesDetails error:", err);
+          // optional: set UI error state
+        } finally {
+          setIsLoding(false);
+        }
       }
       getMoviesDetails();
     },
@@ -356,7 +328,7 @@ function MovieDetail({ selectedId, onCloseMoive, onAddWatched, watched }) {
             <button className="btn-back" onClick={onCloseMoive}>
               &larr;
             </button>
-            <img src={poster} alt={`Poster of ${movie} movie`} />
+            <img src={safePosterUrl(poster)} alt={`Poster of ${title} movie`} />
             <div className="details-overview">
               <h2>{title}</h2>
               <p>
@@ -373,7 +345,6 @@ function MovieDetail({ selectedId, onCloseMoive, onAddWatched, watched }) {
             <div className="rating">
               {!isWatched ? (
                 <>
-                  {" "}
                   <StarRating
                     maxRating={10}
                     size={24}
@@ -449,7 +420,7 @@ function WatchedLists({ watched, movie, onDeletWatched }) {
 function MoviesWatched({ movie, onDeletWatched }) {
   return (
     <li>
-      <img src={movie.poster} alt={`${movie.title} poster`} />
+      <img src={safePosterUrl(movie.poster)} alt={`${movie.title} poster`} />
       <h3>{movie.title}</h3>
       <div>
         <p>
