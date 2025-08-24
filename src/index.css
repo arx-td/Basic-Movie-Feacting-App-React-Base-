@@ -87,7 +87,7 @@ body {
   max-width: 42rem;
   background-color: var(--color-background-500);
   border-radius: var(--radius);
-  overflow: hidden;
+  overflow: visible;
   position: relative;
   min-width: 26rem;
 }
